@@ -2,7 +2,7 @@
 namespace Alr\Scrappy;
 
 use Alr\Scrappy\Exceptions\ScrappyException;
-use App\Crawler\Scrappers\ScrapperInterface;
+use Alr\Scrappy\Scrappers\ScrapperInterface;
 use Illuminate\Filesystem\Cache;
 use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Log;

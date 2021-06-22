@@ -2,9 +2,9 @@
 namespace Alr\Scrappy\Scrappers;
 
 use Alr\Scrappy\Agent;
-use App\Crawler\Scrappers\ScrapperInterface;
 use App\Models\Proxy;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
 use Psr\Log\LoggerInterface;
 
@@ -15,6 +15,7 @@ class ProxyCurlScrapper implements ScrapperInterface
     const PROXY_DELAY = 10;
 
     private $proxy;
+    /** @var Collection */
     private $proxies;
 
     /**
@@ -23,8 +24,8 @@ class ProxyCurlScrapper implements ScrapperInterface
      */
     public function get($url, $options = [])
     {
-        $proxy = (new \Alr\Scrappy\Proxy);
-        $proxy->downloadIFNeeded();
+        $proxy = new \Alr\Scrappy\ProxyList();
+        $this->proxies = $proxy->proxies;
 
         Log::debug('Downloading URL: '.\Str::limit($url, 80, '[...]'));
 
@@ -48,7 +49,7 @@ class ProxyCurlScrapper implements ScrapperInterface
                 } else {
                     $this->proxy->proxy_load_time = $time;
                 }
-                $this->proxy->save();
+                $proxy->saveList();
             } catch (\Exception $e) {
                 Log::error('Error in proxy loop, just jumping...');
             }
@@ -62,7 +63,7 @@ class ProxyCurlScrapper implements ScrapperInterface
      * @param Proxy $proxy
      * @return mixed
      */
-    private function makeRequest($url, Proxy $proxy, $options)
+    private function makeRequest($url, $proxy, $options)
     {
         $ch = curl_init();
 
@@ -82,7 +83,7 @@ class ProxyCurlScrapper implements ScrapperInterface
         ];
 
         $options[CURLOPT_PROXY] = $proxy->ip . ':' . $proxy->port;
-        if($proxy->user) {
+        if(isset($proxy->user) && $proxy->user) {
             $options[CURLOPT_PROXYUSERPWD] = $proxy->user . ':' . $proxy->password;
         }
 
@@ -115,7 +116,7 @@ class ProxyCurlScrapper implements ScrapperInterface
 
     private function getProxyMinTime()
     {
-        $this->proxies = Proxy::query()->where('updated_at', '<=', Carbon::now()->subSeconds(self::PROXY_DELAY));
-        $this->proxy = $this->proxies->orderBy('proxy_load_time', 'asc')->first();
+        $this->proxies = $this->proxies->where('updated_at', '<=', Carbon::now()->subSeconds(self::PROXY_DELAY)->toDateTimeString())->sortBy('proxy_load_time');
+        $this->proxy = $this->proxies->first();
     }
 }

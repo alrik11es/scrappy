@@ -3,7 +3,7 @@
 
 namespace Alr\Scrappy;
 
-use Illuminate\Filesystem\Cache;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
 
 class ProxyList
@@ -12,39 +12,60 @@ class ProxyList
 
     public function __construct()
     {
-        $this->proxies = Cache::get('scrappy_proxies');
+        $this->proxies = \Cache::get('scrappy_proxies');
 
-        if (empty($proxies)) {
+        if (empty($this->proxies)) {
             $this->proxies = collect([]);
             $this->updateProxyList();
+        } else {
+            $this->proxies = collect(json_decode($this->proxies));
         }
     }
 
     public function saveList()
     {
-        Cache::remember(120, 'scrappy_proxies', function() {
-            return json_encode($this->proxies);
-        });
+        \Cache::forever('scrappy_proxies', json_encode($this->proxies));
+    }
+
+    public function downloadProxyList()
+    {
+        $proxy_list = file_get_contents('https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt');
+        return explode("\n", $proxy_list);
     }
 
     public function updateProxyList()
     {
-        $this->proxies->where('proxy_load_time', '>=',30)->delete();
-        $proxy_list = file_get_contents('https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt');
-        $proxy_list = explode("\n", $proxy_list);
-        foreach ($proxy_list as $proxy) {
-            Log::info('[Scrappy] Testing ('.$proxy.') ');
-            if(!empty($proxy) && $this->test($proxy)) {
-                list($ip, $port) = explode(':', $proxy);
-                if ($this->proxies->where('ip', $proxy->ip)->count() <= 0 ) {
-                    Log::info('[Scrappy] Added new proxy ('.$proxy.')');
-                    $p = new Proxy();
-                    $p->port = $port;
-                    $p->ip = $ip;
-                    $this->proxies->add($p);
-                    $this->saveList();
-                }
+        $this->deleteBadPerformingProxies();
+
+        foreach ($this->downloadProxyList() as $proxy) {
+            Log::info('[Scrappy] Testing (' . $proxy . ') ');
+            if (!empty($proxy) && $this->test($proxy)) {
+                $this->createProxyIfNotExists($proxy);
             }
+        }
+    }
+
+    public function createProxyIfNotExists($proxy)
+    {
+        list($ip, $port) = explode(':', $proxy);
+        if ($this->proxies->where('ip', $ip)->count() <= 0) {
+            Log::info('[Scrappy] Added new proxy (' . $proxy . ')');
+            $p = new \stdClass();
+            $p->port = $port;
+            $p->ip = $ip;
+            $p->proxy_load_time = 60;
+            $p->updated_at = Carbon::now()->toDateTimeString();
+            $p->created_at = Carbon::now()->toDateTimeString();
+            $this->proxies->add($p);
+            $this->saveList();
+        }
+    }
+
+    public function deleteBadPerformingProxies()
+    {
+        $r = $this->proxies->where('proxy_load_time', '>=', 30);
+        foreach ($r as $proxy => $item) {
+            unset($this->proxies[$proxy]);
         }
     }
 

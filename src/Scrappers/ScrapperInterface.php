@@ -1,5 +1,5 @@
 <?php
-namespace App\Crawler\Scrappers;
+namespace Alr\Scrappy\Scrappers;
 use Psr\Log\LoggerInterface;
 use Psr\SimpleCache\CacheInterface;
 

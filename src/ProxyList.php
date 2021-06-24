@@ -53,7 +53,7 @@ class ProxyList
             $p = new \stdClass();
             $p->port = $port;
             $p->ip = $ip;
-            $p->proxy_load_time = 60;
+            $p->proxy_load_time = 0;
             $p->updated_at = Carbon::now()->toDateTimeString();
             $p->created_at = Carbon::now()->toDateTimeString();
             $this->proxies->add($p);

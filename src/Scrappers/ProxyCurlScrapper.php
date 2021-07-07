@@ -12,11 +12,16 @@ class ProxyCurlScrapper implements ScrapperInterface
 {
     const CONNECTION_TIMEOUT = 5;
     const MAX_ATTEMPS = 500;
-    const PROXY_DELAY = 10;
 
     private $proxy;
     /** @var Collection */
     private $proxies;
+    private $invalid_regex = [];
+
+    public function declareInvalidByRegex($invalid_regex = [])
+    {
+        $this->invalid_regex = $invalid_regex;
+    }
 
     /**
      * @param $url
@@ -24,46 +29,54 @@ class ProxyCurlScrapper implements ScrapperInterface
      */
     public function get($url, $options = [])
     {
-        $proxy = new \Alr\Scrappy\ProxyList();
-        $this->proxies = $proxy->proxies;
+        $proxy_list = new \Alr\Scrappy\ProxyList();
 
         Log::debug('Downloading URL: '.\Str::limit($url, 80, '[...]'));
 
         $attempts = 0;
         do {
             try {
-                $this->getProxyMinTime();
-                Log::debug('Using proxy: ' . $this->proxy->ip . ':' . $this->proxy->port . ' last time used ' . $this->proxy->proxy_load_time . 's');
+                $proxy = $proxy_list->selectNextProxy();
+                Log::debug('Using proxy: ' . $proxy->ip . ':' . $proxy->port . ' last time used ' . $proxy->proxy_load_time . 's');
                 $init = microtime(true);
                 try {
-                    $curl_scraped_page = $this->makeRequest($url, $this->proxy, $options);
+                    list($curl_scraped_page, $error) = $this->makeProxyRequest($url, $proxy, $options);
+
+                    foreach ($this->invalid_regex as $regex) {
+                        if (preg_match($regex, $curl_scraped_page)) {
+                            throw new \Exception();
+                        }
+                    }
                 } catch (\Throwable $e) {
                     $curl_scraped_page = null;
                 }
                 $end = microtime(true);
                 $time = $end - $init;
+
+                $proxy = $proxy_list->getProxy($proxy);
+
                 if (!$curl_scraped_page) {
                     $attempts++;
-                    $this->proxy->proxy_load_time += $time;
-                    Log::debug('Oops. This proxy has failed... trying again!');
+                    $proxy->proxy_load_time += $time;
+                    Log::error('Download attempt with ('.$proxy->ip . ':' . $proxy->port.')['.$proxy->proxy_load_time.'s] '.str_limit($url, 80, '[...]').' '.$error);
                 } else {
-                    $this->proxy->proxy_load_time = $time;
+                    $proxy->proxy_load_time = $time;
                 }
-                $proxy->saveList();
+                $proxy_list->saveProxyList();
             } catch (\Exception $e) {
                 Log::error('Error in proxy loop, just jumping...');
             }
         } while($curl_scraped_page == false && $attempts <= self::MAX_ATTEMPS);
-        Log::debug('Download done: '.\Str::limit($url, 80, '[...]'));
+        $proxy_list->markUsedProxy();
+        Log::info('Download completed ('.$proxy->ip . ':' . $proxy->port.')['.$proxy->proxy_load_time.'s] '.\Str::limit($url, 80, '[...]'));
         return $curl_scraped_page;
     }
 
     /**
      * @param $url
-     * @param Proxy $proxy
      * @return mixed
      */
-    private function makeRequest($url, $proxy, $options)
+    public function makeProxyRequest($url, $proxy, $options = [])
     {
         $ch = curl_init();
 
@@ -83,6 +96,7 @@ class ProxyCurlScrapper implements ScrapperInterface
         ];
 
         $options[CURLOPT_PROXY] = $proxy->ip . ':' . $proxy->port;
+//        $options[CURLOPT_PROXYTYPE] = CURLPROXY_SOCKS5;
         if(isset($proxy->user) && $proxy->user) {
             $options[CURLOPT_PROXYUSERPWD] = $proxy->user . ':' . $proxy->password;
         }
@@ -91,16 +105,20 @@ class ProxyCurlScrapper implements ScrapperInterface
 
         $curl_scraped_page = curl_exec($ch);
 
-        if($curl_scraped_page === false)
-        {
-            $error = curl_error($ch);
-            Log::error('Attempt to download with ('.$proxy->proxy_load_time.') ('.$proxy->ip . ':' . $proxy->port.') '.str_limit($url, 80, '[...]').' failed ('.$error.')');
+        $info = curl_getinfo($ch);
+        $error = null;
+
+        if ($info['http_code'] != 200) {
+            $curl_scraped_page = false;
+            $error = 'HTTP CODE is not 200';
         }
 
-        $info = curl_getinfo($ch);
+        if($curl_scraped_page === false) {
+            $error = curl_error($ch);
+        }
 
         curl_close($ch);
-        return $curl_scraped_page;
+        return [$curl_scraped_page, $error];
     }
 
     private function getOptions($ch, $options)
@@ -112,11 +130,5 @@ class ProxyCurlScrapper implements ScrapperInterface
         foreach ($options as $key => $value) {
             curl_setopt($ch, $key, $value);
         }
-    }
-
-    private function getProxyMinTime()
-    {
-        $this->proxies = $this->proxies->where('updated_at', '<=', Carbon::now()->subSeconds(self::PROXY_DELAY)->toDateTimeString())->sortBy('proxy_load_time');
-        $this->proxy = $this->proxies->first();
     }
 }

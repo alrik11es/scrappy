@@ -53,8 +53,6 @@ class ProxyCurlScrapper implements ScrapperInterface
                 $end = microtime(true);
                 $time = $end - $init;
 
-                $proxy = $proxy_list->getProxy($proxy);
-
                 if (!$curl_scraped_page) {
                     $attempts++;
                     $proxy->proxy_load_time += $time;
@@ -62,7 +60,7 @@ class ProxyCurlScrapper implements ScrapperInterface
                 } else {
                     $proxy->proxy_load_time = $time;
                 }
-                $proxy_list->saveProxyList();
+                $proxy->save();
             } catch (\Exception $e) {
                 Log::error('Error in proxy loop, just jumping...');
             }

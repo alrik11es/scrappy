@@ -6,7 +6,7 @@ namespace Alr\Scrappy;
 use Alr\Scrappy\Models\Proxy;
 use Alr\Scrappy\Scrappers\ProxyCurlScrapper;
 use Carbon\Carbon;
-use Illuminate\Filesystem\Cache;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ProxyList

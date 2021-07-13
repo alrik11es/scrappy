@@ -1,31 +1,23 @@
 <?php
 namespace Alr\Scrappy\Scrappers;
 
-use App\Crawler\Scrappers\ScrapperInterface;
-
-class FileGetContentScrapper implements  ScrapperInterface
+class FileGetContentScrapper implements ScrapperInterface
 {
-    private $logger;
-    private $cache;
+    private $invalid_regex = [];
 
-    /**
-     * @param mixed $logger
-     */
-    public function setLogger($logger): void
+    public function declareInvalidByRegex($invalid_regex = [])
     {
-        $this->logger = $logger;
-    }
-
-    /**
-     * @param mixed $cache
-     */
-    public function setCache($cache): void
-    {
-        $this->cache = $cache;
+        $this->invalid_regex = $invalid_regex;
     }
 
     public function get($url)
     {
-        // TODO: Implement get() method.
+        $scraped_page = file_get_contents($url);
+        foreach ($this->invalid_regex as $regex) {
+            if (preg_match($regex, $scraped_page)) {
+                $scraped_page = null;
+            }
+        }
+        return $scraped_page;
     }
 }

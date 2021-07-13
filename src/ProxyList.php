@@ -6,6 +6,7 @@ namespace Alr\Scrappy;
 use Alr\Scrappy\Models\Proxy;
 use Alr\Scrappy\Scrappers\ProxyCurlScrapper;
 use Carbon\Carbon;
+use Illuminate\Filesystem\Cache;
 use Illuminate\Support\Facades\Log;
 
 class ProxyList
@@ -15,7 +16,7 @@ class ProxyList
 
     public function markUsedProxy()
     {
-        \Cache::forever('scrappy_used_proxy', implode(':', [$this->selected_proxy->ip, $this->selected_proxy->port]));
+        Cache::forever('scrappy_used_proxy', implode(':', [$this->selected_proxy->ip, $this->selected_proxy->port]));
     }
 
     public function selectNextProxy()
@@ -25,7 +26,7 @@ class ProxyList
 //            $this->updateProxyList();
 //        }
 
-        $scrappy_used_proxy = \Cache::get('scrappy_used_proxy');
+        $scrappy_used_proxy = Cache::get('scrappy_used_proxy');
         if($scrappy_used_proxy) {
             list($ip, $port) = explode(':', $scrappy_used_proxy);
             $valid_proxies = Proxy::where('ip', '!=', $ip)

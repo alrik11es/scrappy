@@ -6,6 +6,7 @@ use App\Models\Proxy;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Psr\Log\LoggerInterface;
 
 class ProxyCurlScrapper implements ScrapperInterface
@@ -31,7 +32,7 @@ class ProxyCurlScrapper implements ScrapperInterface
     {
         $proxy_list = new \Alr\Scrappy\ProxyList();
 
-        Log::debug('Downloading URL: '.\Str::limit($url, 80, '[...]'));
+        Log::debug('Downloading URL: '.Str::limit($url, 80, '[...]'));
 
         $attempts = 0;
         do {
@@ -56,7 +57,7 @@ class ProxyCurlScrapper implements ScrapperInterface
                 if (!$curl_scraped_page) {
                     $attempts++;
                     $proxy->proxy_load_time += $time;
-                    Log::error('Download attempt with ('.$proxy->ip . ':' . $proxy->port.')['.$proxy->proxy_load_time.'s] '.str_limit($url, 80, '[...]').' '.$error);
+                    Log::error('Download attempt with ('.$proxy->ip . ':' . $proxy->port.')['.$proxy->proxy_load_time.'s] '.Str::limit($url, 80, '[...]').' '.$error);
                 } else {
                     $proxy->proxy_load_time = $time;
                 }
@@ -66,7 +67,7 @@ class ProxyCurlScrapper implements ScrapperInterface
             }
         } while($curl_scraped_page == false && $attempts <= self::MAX_ATTEMPS);
         $proxy_list->markUsedProxy();
-        Log::info('Download completed ('.$proxy->ip . ':' . $proxy->port.')['.$proxy->proxy_load_time.'s] '.\Str::limit($url, 80, '[...]'));
+        Log::info('Download completed ('.$proxy->ip . ':' . $proxy->port.')['.$proxy->proxy_load_time.'s] '.Str::limit($url, 80, '[...]'));
         return $curl_scraped_page;
     }
 
